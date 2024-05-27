@@ -1,0 +1,5 @@
+{
+    "BinanceSocketURL": "wss://stream.binance.com:9443/ws",
+    "DatabaseURL": "orders.db"
+  }
+  
