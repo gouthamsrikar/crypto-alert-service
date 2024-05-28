@@ -25,7 +25,7 @@ type OrderMap struct {
 
 var orders = OrderMap{Data: make(map[string]RepositoryOrders)}
 
-func AddOrder(symbol string, referencePrice float64, orderPrice float64, orderID string, fcmId string, isUp bool) {
+func AddOrder(symbol string, referencePrice float64, orderPrice float64, orderID string, fcmId string, isUp bool, ma int) {
 	orders.Lock()
 	defer orders.Unlock()
 	fmt.Println("Current Price:", referencePrice)

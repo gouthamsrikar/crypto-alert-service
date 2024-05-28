@@ -67,9 +67,10 @@ func handleMessages() {
 				continue
 			}
 
-			var orders []models.Order
-			repositories.DB.Where("coin = ? AND status = ?", strings.ToLower(ticker.Symbol), "pending").Find(&orders)
+			AddPrice(strings.ToLower(ticker.Symbol), price)
 
+			// var orders []models.Order
+			// repositories.DB.Where("coin = ? AND status = ?", strings.ToLower(ticker.Symbol), "pending").Find(&orders)
 			go CheckAndExecuteOrder(strings.ToLower(ticker.Symbol), price)
 
 		}
@@ -93,7 +94,8 @@ func subscribeToActiveCoins() {
 	}
 	for _, order := range orders {
 		stream := order.Coin
-		go AddOrder(order.Coin, Prices[order.Coin], order.Price, order.ID, order.FcmID, order.Direction == "up")
+		AddMovingAverageWindow(order.Coin, order.MA)
+		go AddOrder(order.Coin, Prices[order.Coin], order.Price, order.ID, order.FcmID, order.Direction == "up", order.MA)
 		if !streams[stream] {
 			streams[stream] = true
 			err := utils.Subscribe(ws, stream)
@@ -120,7 +122,8 @@ func AddOrderAndSubscribe(order models.Order) error {
 	Prices[order.Coin], err = getPrice(order.Coin)
 	if Prices[order.Coin] != 0 {
 		color.Red("add order")
-		go AddOrder(order.Coin, Prices[order.Coin], order.Price, order.ID, order.FcmID, order.Direction == "up")
+		go AddMovingAverageWindow(order.Coin, order.MA)
+		go AddOrder(order.Coin, Prices[order.Coin], order.Price, order.ID, order.FcmID, order.Direction == "up", order.MA)
 	} else {
 		return err
 	}

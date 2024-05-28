@@ -44,6 +44,7 @@ func GetAllOrderStatus(c *gin.Context) {
 	}
 
 	services.PrintOrder()
+	services.PrintStockData("btcusdt")
 
 	c.JSON(http.StatusOK, orders)
 }
