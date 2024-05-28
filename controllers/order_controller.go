@@ -66,7 +66,7 @@ func CancelOrder(c *gin.Context) {
 		return
 	}
 
-	err = services.CancelOrder(req.OrderId, order)
+	err = services.CancelOrder(req.OrderId, order, order.MA)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel order"})
 		return

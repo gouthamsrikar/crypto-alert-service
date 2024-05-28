@@ -69,9 +69,15 @@ func handleMessages() {
 
 			AddPrice(strings.ToLower(ticker.Symbol), price)
 
+			_, movingAverages := GetStockData(strings.ToLower(ticker.Symbol))
+
+			for p := range movingAverages {
+				if movingAverages[p] != 0 {
+					go CheckAndExecuteOrder(strings.ToLower(ticker.Symbol), movingAverages[p], p)
+				}
+			}
 			// var orders []models.Order
 			// repositories.DB.Where("coin = ? AND status = ?", strings.ToLower(ticker.Symbol), "pending").Find(&orders)
-			go CheckAndExecuteOrder(strings.ToLower(ticker.Symbol), price)
 
 		}
 

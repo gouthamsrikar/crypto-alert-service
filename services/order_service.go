@@ -18,12 +18,14 @@ type RepositoryOrders struct {
 	BounceDown SymbolOrderMap `json:"BounceDown"`
 }
 
+type MAOrders map[int]RepositoryOrders
+
 type OrderMap struct {
 	sync.Mutex
-	Data map[string]RepositoryOrders
+	Data map[string]MAOrders
 }
 
-var orders = OrderMap{Data: make(map[string]RepositoryOrders)}
+var orders = OrderMap{Data: make(map[string]MAOrders)}
 
 func AddOrder(symbol string, referencePrice float64, orderPrice float64, orderID string, fcmId string, isUp bool, ma int) {
 	orders.Lock()
@@ -32,7 +34,11 @@ func AddOrder(symbol string, referencePrice float64, orderPrice float64, orderID
 
 	// Initialize maps if they don't exist
 	if _, exists := orders.Data[symbol]; !exists {
-		orders.Data[symbol] = RepositoryOrders{
+		orders.Data[symbol] = make(MAOrders)
+	}
+
+	if _, exists := orders.Data[symbol][ma]; !exists {
+		orders.Data[symbol][ma] = RepositoryOrders{
 			Upward:     make(SymbolOrderMap),
 			Downward:   make(SymbolOrderMap),
 			BounceDown: make(SymbolOrderMap),
@@ -50,30 +56,29 @@ func AddOrder(symbol string, referencePrice float64, orderPrice float64, orderID
 
 	// Add the order to the upward/downward map
 	if direction == "upward" {
-		if _, exists := orders.Data[symbol].Upward[orderPrice]; !exists {
-			orders.Data[symbol].Upward[orderPrice] = []string{}
+		if _, exists := orders.Data[symbol][ma].Upward[orderPrice]; !exists {
+			orders.Data[symbol][ma].Upward[orderPrice] = []string{}
 		}
 		if isUp {
-
-			orders.Data[symbol].Upward[orderPrice] = append(orders.Data[symbol].Upward[orderPrice], orderID)
+			orders.Data[symbol][ma].Upward[orderPrice] = append(orders.Data[symbol][ma].Upward[orderPrice], orderID)
 		} else {
-			if _, exists := orders.Data[symbol].BounceDown[orderPrice]; !exists {
-				orders.Data[symbol].BounceDown[orderPrice] = []string{}
+			if _, exists := orders.Data[symbol][ma].BounceDown[orderPrice]; !exists {
+				orders.Data[symbol][ma].BounceDown[orderPrice] = []string{}
 			}
-			orders.Data[symbol].BounceDown[orderPrice] = append(orders.Data[symbol].BounceDown[orderPrice], orderID)
+			orders.Data[symbol][ma].BounceDown[orderPrice] = append(orders.Data[symbol][ma].BounceDown[orderPrice], orderID)
 		}
 
 	} else {
-		if _, exists := orders.Data[symbol].Downward[orderPrice]; !exists {
-			orders.Data[symbol].Downward[orderPrice] = []string{}
+		if _, exists := orders.Data[symbol][ma].Downward[orderPrice]; !exists {
+			orders.Data[symbol][ma].Downward[orderPrice] = []string{}
 		}
 		if isUp {
-			if _, exists := orders.Data[symbol].BounceUp[orderPrice]; !exists {
-				orders.Data[symbol].BounceUp[orderPrice] = []string{}
+			if _, exists := orders.Data[symbol][ma].BounceUp[orderPrice]; !exists {
+				orders.Data[symbol][ma].BounceUp[orderPrice] = []string{}
 			}
-			orders.Data[symbol].BounceUp[orderPrice] = append(orders.Data[symbol].BounceUp[orderPrice], orderID)
+			orders.Data[symbol][ma].BounceUp[orderPrice] = append(orders.Data[symbol][ma].BounceUp[orderPrice], orderID)
 		} else {
-			orders.Data[symbol].Downward[orderPrice] = append(orders.Data[symbol].Downward[orderPrice], orderID)
+			orders.Data[symbol][ma].Downward[orderPrice] = append(orders.Data[symbol][ma].Downward[orderPrice], orderID)
 		}
 
 	}
@@ -81,7 +86,7 @@ func AddOrder(symbol string, referencePrice float64, orderPrice float64, orderID
 	go SendFCMNotification(fcmId, fmt.Sprintf("Order placed at price $%f", orderPrice), "")
 }
 
-func CheckAndExecuteOrder(symbol string, price float64) {
+func CheckAndExecuteOrder(symbol string, price float64, ma int) {
 	orders.Lock()
 	defer orders.Unlock()
 
@@ -92,45 +97,49 @@ func CheckAndExecuteOrder(symbol string, price float64) {
 		return
 	}
 
+	// Check if the MA value exists
+	if _, exists := orders.Data[symbol][ma]; !exists {
+		fmt.Printf("MA %d for symbol %s does not exist.\n", ma, symbol)
+		return
+	}
+
 	var executedOrderIds []string
 
 	// removing the prices from the upward map that are below the input price
-	for p := range orders.Data[symbol].Upward {
+	for p := range orders.Data[symbol][ma].Upward {
 		if p < price {
-			executedOrderIds = append(executedOrderIds, orders.Data[symbol].Upward[p]...)
-			delete(orders.Data[symbol].Upward, p)
-
+			executedOrderIds = append(executedOrderIds, orders.Data[symbol][ma].Upward[p]...)
+			delete(orders.Data[symbol][ma].Upward, p)
 		}
 	}
 
 	// removing the prices from the downward map that are greater than the input price
-	for p := range orders.Data[symbol].Downward {
+	for p := range orders.Data[symbol][ma].Downward {
 		if p > price {
-			executedOrderIds = append(executedOrderIds, orders.Data[symbol].Downward[p]...)
-			delete(orders.Data[symbol].Downward, p)
-
+			executedOrderIds = append(executedOrderIds, orders.Data[symbol][ma].Downward[p]...)
+			delete(orders.Data[symbol][ma].Downward, p)
 		}
 	}
 
-	for p := range orders.Data[symbol].BounceDown {
+	for p := range orders.Data[symbol][ma].BounceDown {
 		if p <= price {
-			bounced := orders.Data[symbol].BounceDown[p]
-			delete(orders.Data[symbol].BounceDown, p)
-			if _, exists := orders.Data[symbol].Downward[p]; !exists {
-				orders.Data[symbol].Downward[p] = []string{}
+			bounced := orders.Data[symbol][ma].BounceDown[p]
+			delete(orders.Data[symbol][ma].BounceDown, p)
+			if _, exists := orders.Data[symbol][ma].Downward[p]; !exists {
+				orders.Data[symbol][ma].Downward[p] = []string{}
 			}
-			orders.Data[symbol].Downward[p] = append(orders.Data[symbol].Downward[p], bounced...)
+			orders.Data[symbol][ma].Downward[p] = append(orders.Data[symbol][ma].Downward[p], bounced...)
 		}
 	}
 
-	for p := range orders.Data[symbol].BounceUp {
+	for p := range orders.Data[symbol][ma].BounceUp {
 		if p >= price {
-			bounced := orders.Data[symbol].BounceUp[p]
-			delete(orders.Data[symbol].BounceUp, p)
-			if _, exists := orders.Data[symbol].Upward[p]; !exists {
-				orders.Data[symbol].Upward[p] = []string{}
+			bounced := orders.Data[symbol][ma].BounceUp[p]
+			delete(orders.Data[symbol][ma].BounceUp, p)
+			if _, exists := orders.Data[symbol][ma].Upward[p]; !exists {
+				orders.Data[symbol][ma].Upward[p] = []string{}
 			}
-			orders.Data[symbol].Upward[p] = append(orders.Data[symbol].Upward[p], bounced...)
+			orders.Data[symbol][ma].Upward[p] = append(orders.Data[symbol][ma].Upward[p], bounced...)
 		}
 	}
 
@@ -141,60 +150,64 @@ func CheckAndExecuteOrder(symbol string, price float64) {
 	}
 
 	// unsubscribing the socket when all existing order are executed
-	if len(orders.Data[symbol].Upward) == 0 && len(orders.Data[symbol].Downward) == 0 && len(orders.Data[symbol].BounceDown) == 0 && len(orders.Data[symbol].BounceUp) == 0 {
-		delete(orders.Data, symbol)
-		go UnsubscribeCoin(symbol)
+	if len(orders.Data[symbol][ma].Upward) == 0 && len(orders.Data[symbol][ma].Downward) == 0 && len(orders.Data[symbol][ma].BounceDown) == 0 && len(orders.Data[symbol][ma].BounceUp) == 0 {
+		delete(orders.Data[symbol], ma)
+		if len(orders.Data[symbol]) == 0 {
+			delete(orders.Data, symbol)
+			go UnsubscribeCoin(symbol)
+		}
 	}
 	// updating db for executed triggers
-
 }
 
-func CancelOrder(orderId string, order models.Order) error {
+func CancelOrder(orderId string, order models.Order, ma int) error {
 	color.Green(order.ID, order.Coin, order.Price, order.Status)
 
 	orders.Lock()
 	defer orders.Unlock()
 
 	// Check if the mainKey exists in the map
-	if repoOrders, exists := orders.Data[order.Coin]; exists {
-		color.Green("level 1")
+	if maOrders, exists := orders.Data[order.Coin]; exists {
 
-		// WaitGroup to wait for the goroutines to complete
-		var wg sync.WaitGroup
+		// Check if the MA key exists in the map
+		if repoOrders, exists := maOrders[ma]; exists {
 
-		// Remove the string from the upward map
-		if upwardList, exists := repoOrders.Upward[order.Price]; exists {
-			color.Green("level 2")
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				repositories.UpdateOrderStatus(orderId, "canceled")
-			}()
-			repoOrders.Upward[order.Price] = removeStringFromSlice(upwardList, orderId)
-			if len(repoOrders.Upward[order.Price]) == 0 {
-				delete(repoOrders.Upward, order.Price)
+			// WaitGroup to wait for the goroutines to complete
+			var wg sync.WaitGroup
+
+			// Remove the string from the upward map
+			if upwardList, exists := repoOrders.Upward[order.Price]; exists {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					repositories.UpdateOrderStatus(orderId, "canceled")
+				}()
+				repoOrders.Upward[order.Price] = removeStringFromSlice(upwardList, orderId)
+				if len(repoOrders.Upward[order.Price]) == 0 {
+					delete(repoOrders.Upward, order.Price)
+				}
 			}
-		}
 
-		// Remove the string from the downward map
-		if downwardList, exists := repoOrders.Downward[order.Price]; exists {
-			color.Green("level 3")
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				repositories.UpdateOrderStatus(orderId, "canceled")
-			}()
-			repoOrders.Downward[order.Price] = removeStringFromSlice(downwardList, orderId)
-			if len(repoOrders.Downward[order.Price]) == 0 {
-				delete(repoOrders.Downward, order.Price)
+			// Remove the string from the downward map
+			if downwardList, exists := repoOrders.Downward[order.Price]; exists {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					repositories.UpdateOrderStatus(orderId, "canceled")
+				}()
+				repoOrders.Downward[order.Price] = removeStringFromSlice(downwardList, orderId)
+				if len(repoOrders.Downward[order.Price]) == 0 {
+					delete(repoOrders.Downward, order.Price)
+				}
 			}
+
+
+			// Wait for all goroutines to complete
+			wg.Wait()
+
+			// Update the orders map
+			orders.Data[order.Coin][ma] = repoOrders
 		}
-
-		// Wait for all goroutines to complete
-		wg.Wait()
-
-		// Update the orders map
-		orders.Data[order.Coin] = repoOrders
 	}
 
 	return nil
