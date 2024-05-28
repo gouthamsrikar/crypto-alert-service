@@ -24,6 +24,10 @@ func CreateOrder(c *gin.Context) {
 
 	if order.Type == "price" {
 		order.MA = 1
+	} else {
+		if order.MA == 0 {
+			order.MA = 5
+		}
 	}
 
 	go services.StoreFcmId(order.ID, order.FcmID)

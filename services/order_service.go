@@ -90,7 +90,6 @@ func CheckAndExecuteOrder(symbol string, price float64, ma int) {
 	orders.Lock()
 	defer orders.Unlock()
 
-	// Check if the token symbol exists
 	if _, exists := orders.Data[symbol]; !exists {
 		fmt.Printf("Symbol %s does not exist.\n", symbol)
 		go UnsubscribeCoin(symbol)
@@ -152,12 +151,12 @@ func CheckAndExecuteOrder(symbol string, price float64, ma int) {
 	// unsubscribing the socket when all existing order are executed
 	if len(orders.Data[symbol][ma].Upward) == 0 && len(orders.Data[symbol][ma].Downward) == 0 && len(orders.Data[symbol][ma].BounceDown) == 0 && len(orders.Data[symbol][ma].BounceUp) == 0 {
 		delete(orders.Data[symbol], ma)
+		go RemoveMovingAverageWindow(symbol, ma)
 		if len(orders.Data[symbol]) == 0 {
 			delete(orders.Data, symbol)
 			go UnsubscribeCoin(symbol)
 		}
 	}
-	// updating db for executed triggers
 }
 
 func CancelOrder(orderId string, order models.Order, ma int) error {
@@ -166,16 +165,12 @@ func CancelOrder(orderId string, order models.Order, ma int) error {
 	orders.Lock()
 	defer orders.Unlock()
 
-	// Check if the mainKey exists in the map
 	if maOrders, exists := orders.Data[order.Coin]; exists {
 
-		// Check if the MA key exists in the map
 		if repoOrders, exists := maOrders[ma]; exists {
 
-			// WaitGroup to wait for the goroutines to complete
 			var wg sync.WaitGroup
 
-			// Remove the string from the upward map
 			if upwardList, exists := repoOrders.Upward[order.Price]; exists {
 				wg.Add(1)
 				go func() {
@@ -188,7 +183,6 @@ func CancelOrder(orderId string, order models.Order, ma int) error {
 				}
 			}
 
-			// Remove the string from the downward map
 			if downwardList, exists := repoOrders.Downward[order.Price]; exists {
 				wg.Add(1)
 				go func() {
@@ -201,11 +195,8 @@ func CancelOrder(orderId string, order models.Order, ma int) error {
 				}
 			}
 
-
-			// Wait for all goroutines to complete
 			wg.Wait()
 
-			// Update the orders map
 			orders.Data[order.Coin][ma] = repoOrders
 		}
 	}
