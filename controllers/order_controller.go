@@ -22,6 +22,12 @@ func CreateOrder(c *gin.Context) {
 
 	order.ID = uuid.New().String()[:8]
 
+	if order.Type == "price" {
+		order.MA = 1
+	}
+
+	go services.StoreFcmId(order.ID, order.FcmID)
+
 	if err := services.AddOrderAndSubscribe(order); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

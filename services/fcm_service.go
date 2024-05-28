@@ -11,8 +11,10 @@ import (
 
 var fcmClient *messaging.Client
 
+var clientFcmIdMap = make(map[string]string)
+
 func InitFCMService() {
-	opt := option.WithCredentialsFile("path/to/your/firebase/credentials.json")
+	opt := option.WithCredentialsFile("firebase.json")
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
 		log.Fatalf("error initializing app: %v", err)
@@ -22,6 +24,14 @@ func InitFCMService() {
 	if err != nil {
 		log.Fatalf("error getting Messaging client: %v", err)
 	}
+}
+
+func NotifyWithOrderId(orderId string, title string, body string) {
+	SendFCMNotification(clientFcmIdMap[orderId], title, body)
+}
+
+func StoreFcmId(orderId string, fcmId string) {
+	clientFcmIdMap[orderId] = fcmId
 }
 
 func SendFCMNotification(token, title, body string) {

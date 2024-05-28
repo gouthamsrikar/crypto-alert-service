@@ -70,7 +70,7 @@ func handleMessages() {
 			var orders []models.Order
 			repositories.DB.Where("coin = ? AND status = ?", strings.ToLower(ticker.Symbol), "pending").Find(&orders)
 
-			go CheckAndRemoveOrder(strings.ToLower(ticker.Symbol), price)
+			go CheckAndExecuteOrder(strings.ToLower(ticker.Symbol), price)
 
 		}
 
@@ -93,7 +93,7 @@ func subscribeToActiveCoins() {
 	}
 	for _, order := range orders {
 		stream := order.Coin
-		go AddOrder(order.Coin, Prices[order.Coin], order.Price, order.ID)
+		go AddOrder(order.Coin, Prices[order.Coin], order.Price, order.ID, order.FcmID, order.Direction == "up")
 		if !streams[stream] {
 			streams[stream] = true
 			err := utils.Subscribe(ws, stream)
@@ -120,7 +120,7 @@ func AddOrderAndSubscribe(order models.Order) error {
 	Prices[order.Coin], err = getPrice(order.Coin)
 	if Prices[order.Coin] != 0 {
 		color.Red("add order")
-		go AddOrder(order.Coin, Prices[order.Coin], order.Price, order.ID)
+		go AddOrder(order.Coin, Prices[order.Coin], order.Price, order.ID, order.FcmID, order.Direction == "up")
 	} else {
 		return err
 	}

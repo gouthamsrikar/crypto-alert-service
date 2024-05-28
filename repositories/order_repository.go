@@ -32,13 +32,13 @@ func GetAllOrders() ([]models.Order, error) {
 	return orders, err
 }
 
-func UpdateOrderStatus(id string, status string, direction string) error {
-	return DB.Model(&models.Order{}).Where("id = ?", id).Update("status", status).Update("direction", direction).Error
+func UpdateOrderStatus(id string, status string) error {
+	return DB.Model(&models.Order{}).Where("id = ?", id).Update("status", status).Error
 }
 
-func UpdateOrderStatusForIDs(ids []string, status string, direction string) error {
+func UpdateOrderStatusForIDs(ids []string, status string) error {
 	for _, id := range ids {
-		err := UpdateOrderStatus(id, status, direction)
+		err := UpdateOrderStatus(id, status)
 		if err != nil {
 			return err
 		}

@@ -15,7 +15,7 @@ func main() {
 
 	repositories.InitDB(config.AppConfig.DatabaseURL)
 
-	// services.InitFCMService()
+	services.InitFCMService()
 
 	go services.ListenBinanceSocket(config.AppConfig.BinanceSocketURL)
 
