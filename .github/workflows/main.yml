@@ -1,0 +1,17 @@
+on:
+    pull_request:
+      branches:
+        - master
+    push:
+      branches:
+        - master
+name: "Release and Versioning"
+jobs:
+    build:
+      name: Build & Release
+      runs-on: macos-latest
+      steps:
+        - name: Generate Release
+          uses: ncipollo/release-action@v1
+          with:
+            tag: v1.0.${{ github.run_number }}
